@@ -1400,6 +1400,16 @@ function buildCourse(themeIdx) {
       if(tile.coins2){addCoin(cx-rtX*0.8,tFloorY,cz-rtZ*0.8);addCoin(cx+rtX*0.8,tFloorY,cz+rtZ*0.8);}
     }
 
+    // 側壁追加（gap/branchは独自処理済み）
+    if(tile.type!=='gap'&&tile.type!=='branch'){
+      const HW=TRACK_W/2;
+      const exitAngle=tAngle+(tile.turn||0)*Math.PI/180;
+      const exitRtX=Math.cos(exitAngle), exitRtZ=Math.sin(exitAngle);
+      const tx1=tPos.x+fwdX*TILE_LEN, tz1=tPos.z+fwdZ*TILE_LEN;
+      trackWalls.push({x1:tPos.x-rtX*HW,z1:tPos.z-rtZ*HW,x2:tx1-exitRtX*HW,z2:tz1-exitRtZ*HW});
+      trackWalls.push({x1:tPos.x+rtX*HW,z1:tPos.z+rtZ*HW,x2:tx1+exitRtX*HW,z2:tz1+exitRtZ*HW});
+    }
+
     tPos.x+=fwdX*TILE_LEN;
     tPos.z+=fwdZ*TILE_LEN;
     tFloorY=exitFloorY;
@@ -1748,9 +1758,11 @@ function updateTrail(dt) {
 }
 
 // ── CONTROLS ─────────────────────────────────────────────────
-// ジョイスティック方式: タッチ開始点からのドラッグ量で方向・速度を決定
+// フリック方式: スワイプのデルタをbvに直接加算 → 回数でスピードが乗る
 let targetInputX = 0, targetInputZ = 0;
 let touchStartX = 0, touchStartY = 0;
+let lastTouchX = 0, lastTouchY = 0;
+const FLICK_SCALE = 80; // スワイプ感度（画面の1%スワイプ≈0.8の加速）
 
 window.addEventListener('touchstart', e=>{
   if (gameState!=='playing'&&gameState!=='foul') return;
@@ -1758,16 +1770,20 @@ window.addEventListener('touchstart', e=>{
   e.preventDefault();
   const t=e.touches[0];
   touchStartX=t.clientX; touchStartY=t.clientY;
+  lastTouchX=t.clientX; lastTouchY=t.clientY;
 },{passive:false});
 
 window.addEventListener('touchmove', e=>{
   if (gameState!=='playing'&&gameState!=='foul') return;
   e.preventDefault();
   const t=e.touches[0];
-  const dx=(t.clientX-touchStartX)/innerWidth*5.5;
-  const dz=(t.clientY-touchStartY)/innerHeight*5.5;
-  targetInputX=Math.max(-1,Math.min(1,dx));
-  targetInputZ=Math.max(-1,Math.min(1,dz));
+  // 前回からのデルタをbvに加算（スワイプ回数が多いほど速くなる）
+  const ddx=(t.clientX-lastTouchX)/innerWidth*FLICK_SCALE;
+  const ddz=(t.clientY-lastTouchY)/innerHeight*FLICK_SCALE;
+  bvx+=ddx; bvz+=ddz;
+  const spd=Math.hypot(bvx,bvz);
+  if(spd>MAX_SPEED){bvx*=MAX_SPEED/spd;bvz*=MAX_SPEED/spd;}
+  lastTouchX=t.clientX; lastTouchY=t.clientY;
 },{passive:false});
 
 window.addEventListener('touchend', e=>{
@@ -1793,11 +1809,21 @@ window.addEventListener('keyup', e=>{
 // ── CAMERA ───────────────────────────────────────────────────
 // 3人称視点カメラ（斜め後ろから追従）
 let camP=new THREE.Vector3(0,8,14), camL=new THREE.Vector3(0,1,-3);
+let camAngle=0; // カメラの追従角度（速度方向に滑らかに回転）
 function updateCamera(dt) {
-  const targetP = new THREE.Vector3(bx, by+8, bz+14);
-  const targetL = new THREE.Vector3(bx, by+1, bz-3);
-  camP.lerp(targetP, 5*dt);
-  camL.lerp(targetL, 5*dt);
+  const spd=Math.hypot(bvx,bvz);
+  if(spd>1.0){
+    const targetAngle=Math.atan2(bvx,bvz);
+    let da=targetAngle-camAngle;
+    while(da>Math.PI)da-=Math.PI*2;
+    while(da<-Math.PI)da+=Math.PI*2;
+    camAngle+=da*Math.min(3*dt,1);
+  }
+  const fdX=Math.sin(camAngle),fdZ=Math.cos(camAngle);
+  const targetP=new THREE.Vector3(bx-fdX*14,by+8,bz-fdZ*14);
+  const targetL=new THREE.Vector3(bx+fdX*3,by+1,bz+fdZ*3);
+  camP.lerp(targetP,4*dt);
+  camL.lerp(targetL,6*dt);
   camera.position.copy(camP);
   camera.lookAt(camL);
 }
@@ -1892,12 +1918,13 @@ const Game = {
     gameState='playing';
   },
   resetBall(fromStart=false) {
-    if (fromStart) { bx=0; by=2; bz=0; }
-    else { bx=spawnData.x; by=spawnData.y; bz=spawnData.z; }
+    if (fromStart) { bx=0; by=2; bz=0; camAngle=0; }
+    else { bx=spawnData.x; by=spawnData.y; bz=spawnData.z; camAngle=spawnData.angle||0; }
     bvx=0; bvz=0; vy=0;
     targetInputX=0; targetInputZ=0;
-    camP.set(bx, by+8, bz+14);
-    camL.set(bx, by+1, bz-3);
+    const fdX=Math.sin(camAngle),fdZ=Math.cos(camAngle);
+    camP.set(bx-fdX*14,by+8,bz-fdZ*14);
+    camL.set(bx+fdX*3,by+1,bz+fdZ*3);
   },
   foul() {
     gameState='foul';
