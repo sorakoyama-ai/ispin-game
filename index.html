@@ -423,6 +423,11 @@ const GACHA = {
 
 // ── VERSION HISTORY ─────────────────────────────────────────
 const VERSION_HISTORY = [
+  {ver:'v1.6.2', date:'2026-06-21', changes:[
+    '壁コリジョン判定がカーブタイルで機能しないバグを修正',
+    'カメラの初期向きが逆になっていたバグを修正',
+    'CPリスポーン時のカメラ向きをコース方向に合わせて修正',
+  ]},
   {ver:'v1.6.1', date:'2026-06-21', changes:[
     '落下防止の透明壁を長いコース全タイルに復元',
     'カメラをボールの進行方向に3人称追従するよう変更',
@@ -1625,10 +1630,13 @@ function physicsUpdate(dt) {
 }
 
 function wallCollisions() {
-  // ボールがコース面付近にいる時のみ壁判定
+  // ボールがコース面付近にいる時のみ壁判定（タイル回転を考慮したローカル座標で判定）
   let nearFloor = false;
   for (const t of tileMeshes) {
-    if (Math.abs(bx-t.cx)<t.halfW+2 && Math.abs(bz-t.cz)<t.halfL+2 &&
+    const cos2=Math.cos(-t.ay), sin2=Math.sin(-t.ay);
+    const ddx=bx-t.cx, ddz=bz-t.cz;
+    const lx=ddx*cos2-ddz*sin2, lz=ddx*sin2+ddz*cos2;
+    if (Math.abs(lx)<t.halfW+2 && Math.abs(lz)<t.halfL+2 &&
         by > t.topY-1.5 && by < t.topY+5) { nearFloor=true; break; }
   }
   if (!nearFloor) return;
@@ -1821,7 +1829,7 @@ window.addEventListener('keyup', e=>{
 // ── CAMERA ───────────────────────────────────────────────────
 // 3人称視点カメラ（斜め後ろから追従）
 let camP=new THREE.Vector3(0,8,14), camL=new THREE.Vector3(0,1,-3);
-let camAngle=0; // カメラの追従角度（速度方向に滑らかに回転）
+let camAngle=Math.PI; // カメラの追従角度（Z-方向=Math.PIが初期後方）
 function updateCamera(dt) {
   const spd=Math.hypot(bvx,bvz);
   if(spd>1.0){
@@ -1930,8 +1938,8 @@ const Game = {
     gameState='playing';
   },
   resetBall(fromStart=false) {
-    if (fromStart) { bx=0; by=2; bz=0; camAngle=0; }
-    else { bx=spawnData.x; by=spawnData.y; bz=spawnData.z; camAngle=spawnData.angle||0; }
+    if (fromStart) { bx=0; by=2; bz=0; camAngle=Math.PI; }
+    else { bx=spawnData.x; by=spawnData.y; bz=spawnData.z; camAngle=(spawnData.angle||0)+Math.PI; }
     bvx=0; bvz=0; vy=0;
     targetInputX=0; targetInputZ=0;
     const fdX=Math.sin(camAngle),fdZ=Math.cos(camAngle);
