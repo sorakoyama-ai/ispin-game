@@ -423,6 +423,10 @@ const GACHA = {
 
 // ── VERSION HISTORY ─────────────────────────────────────────
 const VERSION_HISTORY = [
+  {ver:'v1.6.4', date:'2026-06-21', changes:[
+    'ジャンプ中に壁が消えるバグを完全修正（Y上限撤廃）',
+    'カーブ・坂道でスワイプが逆になるバグを完全修正（コース方向基準に変更）',
+  ]},
   {ver:'v1.6.3', date:'2026-06-21', changes:[
     'ジャンプ中に壁が消えてコースアウトするバグを修正',
     'カーブ・坂道でスワイプ方向が逆になるバグを修正（カメラ基底変換）',
@@ -1609,6 +1613,7 @@ function physicsUpdate(dt) {
     if (gd.tile.isRamp) vy = Math.min(22, spd * 1.6);
     else vy = 0;
     onGround = true;
+    lastTileAngle = gd.tile.ay; // スワイプ変換用コース方向を地面接触時に更新
   } else {
     vy += GRAV * dt;
     onGround = false;
@@ -1641,7 +1646,7 @@ function wallCollisions() {
     const ddx=bx-t.cx, ddz=bz-t.cz;
     const lx=ddx*cos2-ddz*sin2, lz=ddx*sin2+ddz*cos2;
     if (Math.abs(lx)<t.halfW+2 && Math.abs(lz)<t.halfL+2 &&
-        by > t.topY-1.5 && by < t.topY+20) { nearFloor=true; break; }
+        by > t.topY-1.5) { nearFloor=true; break; }
   }
   if (!nearFloor) return;
 
@@ -1786,6 +1791,7 @@ function updateTrail(dt) {
 let targetInputX = 0, targetInputZ = 0;
 let touchStartX = 0, touchStartY = 0;
 let lastTouchX = 0, lastTouchY = 0;
+let lastTileAngle = 0; // 最後に接地したタイルのコース方向（スワイプ変換基準）
 const FLICK_SCALE = 80; // スワイプ感度（画面の1%スワイプ≈0.8の加速）
 
 window.addEventListener('touchstart', e=>{
@@ -1804,8 +1810,9 @@ window.addEventListener('touchmove', e=>{
   // スクリーンデルタをカメラ方向基底でワールド座標に変換して加算
   const dsx=(t.clientX-lastTouchX)/innerWidth*FLICK_SCALE;
   const dsy=(t.clientY-lastTouchY)/innerHeight*FLICK_SCALE;
-  const fwdX=Math.sin(camAngle), fwdZ=Math.cos(camAngle); // カメラ前方
-  const rtX=-fwdZ, rtZ=fwdX;                              // カメラ右方向
+  // コース方向（lastTileAngle）基準で変換 → カメラ向きに関係なく「上=前進」が安定
+  const fwdX=Math.sin(lastTileAngle), fwdZ=-Math.cos(lastTileAngle);
+  const rtX=Math.cos(lastTileAngle), rtZ=Math.sin(lastTileAngle);
   bvx += -dsy*fwdX + dsx*rtX;
   bvz += -dsy*fwdZ + dsx*rtZ;
   const spd=Math.hypot(bvx,bvz);
