@@ -1333,6 +1333,65 @@ function buildCourse(themeIdx) {
       const bannerMat=new THREE.MeshStandardMaterial({color:0xff2200,emissive:0xff0000,emissiveIntensity:0.9,roughness:0.2});
       const banner=new THREE.Mesh(new THREE.BoxGeometry(TRACK_W+2.4,0.9,0.12),bannerMat);
       banner.position.set(cx,gH-0.55+tFloorY,cz);banner.rotation.y=tAngle;scene.add(banner);fenceMeshes.push(banner);
+    } else if(tile.type==='branch'){
+      // Y字分岐セクション（現在のtPos/tAngle/tFloorYから展開）
+      const ROAD_LEN=120, BO=11.5, BIA=7.5, BIB=2.0, BW=4, HW=TRACK_W/2;
+      const toW=(lx,lz)=>({x:tPos.x+lx*rtX+lz*fwdX, z:tPos.z+lx*rtZ+lz*fwdZ});
+      const AW=(lx1,lz1,lx2,lz2)=>{const a=toW(lx1,lz1),b=toW(lx2,lz2);trackWalls.push({x1:a.x,z1:a.z,x2:b.x,z2:b.z});};
+      // 分岐入口床（幅14, lz=0〜20）
+      const bep=toW(0,10);
+      const bem=addTile(bep.x,tFloorY,bep.z,14,TRACK_H,20,th.track[0]); bem.rotation.y=tAngle;
+      tileMeshes.push({mesh:bem,cx:bep.x,cz:bep.z,ay:tAngle,halfW:7,halfL:10,topY:tFloorY+TRACK_H/2});
+      // 3本道（各幅4, lz=20〜140）
+      [[-9.5,1],[0,0],[9.5,2]].forEach(([blx,bci])=>{
+        const bmp=toW(blx,20+ROAD_LEN/2);
+        const bm=addTile(bmp.x,tFloorY,bmp.z,BW,TRACK_H,ROAD_LEN,th.track[bci]); bm.rotation.y=tAngle;
+        tileMeshes.push({mesh:bm,cx:bmp.x,cz:bmp.z,ay:tAngle,halfW:BW/2,halfL:ROAD_LEN/2,topY:tFloorY+TRACK_H/2});
+      });
+      // ジャンプ台（各道lz=70〜78）
+      [[-9.5],[0],[9.5]].forEach(([blx])=>{
+        const brp=toW(blx,70);
+        const brm=addTile(brp.x,tFloorY+0.35,brp.z,BW,TRACK_H,8,th.accent); brm.rotation.y=tAngle;
+        tileMeshes.push({mesh:brm,cx:brp.x,cz:brp.z,ay:tAngle,halfW:BW/2,halfL:4,topY:tFloorY+TRACK_H/2+0.35,isRamp:true});
+      });
+      // Y逆字合流床（幅14, lz=140〜160）
+      const bxp=toW(0,150);
+      const bxm=addTile(bxp.x,tFloorY,bxp.z,14,TRACK_H,20,th.track[0]); bxm.rotation.y=tAngle;
+      tileMeshes.push({mesh:bxm,cx:bxp.x,cz:bxp.z,ay:tAngle,halfW:7,halfL:10,topY:tFloorY+TRACK_H/2});
+      // 各道のチェックポイント（lz=22）
+      const cpMat2=new THREE.MeshStandardMaterial({color:0xffdd00,emissive:0xffaa00,emissiveIntensity:1.2,roughness:0.1,metalness:0.9});
+      const bpH=3.6;
+      [[-9.5],[0],[9.5]].forEach(([blx])=>{
+        const bcp=toW(blx,22);
+        checkpoints.push({cx:bcp.x,cz:bcp.z,ay:tAngle,reached:false,num:checkpoints.length+1,spawnX:bcp.x,spawnY:tFloorY+2,spawnZ:bcp.z,spawnAngle:tAngle});
+        [-1,1].forEach(bs=>{
+          const bp=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,bpH,10),cpMat2);
+          bp.position.set(bcp.x+bs*rtX*(BW/2+0.1),bpH/2+tFloorY,bcp.z+bs*rtZ*(BW/2+0.1)); bp.castShadow=true; scene.add(bp); fenceMeshes.push(bp);
+        });
+        const bbar=new THREE.Mesh(new THREE.BoxGeometry(BW+0.5,0.28,0.28),cpMat2);
+        bbar.position.set(bcp.x,bpH+tFloorY,bcp.z); bbar.rotation.y=tAngle; scene.add(bbar); fenceMeshes.push(bbar);
+      });
+      // 道色マーカー（赤/緑/青）
+      [[-9.5,0xff4444],[0,0x44ff44],[9.5,0x4488ff]].forEach(([blx,bcol])=>{
+        const bmp2=toW(blx,21);
+        const bmk=new THREE.Mesh(new THREE.BoxGeometry(BW-0.2,0.05,0.6),new THREE.MeshBasicMaterial({color:bcol,transparent:true,opacity:0.9}));
+        bmk.position.set(bmp2.x,tFloorY+TRACK_H/2+0.02,bmp2.z); bmk.rotation.y=tAngle; scene.add(bmk); fenceMeshes.push(bmk);
+      });
+      // 壁（入口→Y字拡張→3本道→Y逆字収束→出口）
+      AW(-HW,0,-HW,20); AW(HW,0,HW,20);
+      AW(-HW,20,-BO,40); AW(HW,20,BO,40);
+      AW(-HW,20,-BIA,40); AW(-HW,20,-BIB,40);
+      AW(HW,20,BIA,40); AW(HW,20,BIB,40);
+      AW(-BO,40,-BO,140); AW(BO,40,BO,140);
+      AW(-BIA,40,-BIA,140); AW(-BIB,40,-BIB,140);
+      AW(BIB,40,BIB,140); AW(BIA,40,BIA,140);
+      AW(-BO,140,-HW,160); AW(BO,140,HW,160);
+      AW(-BIA,140,-HW,160); AW(-BIB,140,-HW,160);
+      AW(BIB,140,HW,160); AW(BIA,140,HW,160);
+      // pathPts（分岐内の中継点）
+      [20,80,140].forEach(blz=>{const bpt=toW(0,blz);pathPts.push({pos:new THREE.Vector3(bpt.x,tFloorY,bpt.z),angle:tAngle});});
+      // tPosを分岐全体160ユニット-TILE_LEN前進（forEachの末尾でTILE_LENが加算されるため）
+      tPos.x+=fwdX*(160-TILE_LEN); tPos.z+=fwdZ*(160-TILE_LEN);
     } else if(tile.type==='gap'){
       // void gap section - no physics, no ribbon
     } else {
@@ -1388,6 +1447,7 @@ function generateCourseLayout() {
     R(),G(),G(),G(),F({coins:true}),                     // RAMP 3 (gap×3)
     F({coins2:true}),F({coins:true}),
     T('checkpoint'),
+    T('branch'),                                          // Y字分岐
 
     // == SECTION 4: レール + ハンマー ==
     F({coins:true}),
@@ -1495,7 +1555,7 @@ function getGoalData() {
 }
 
 function physicsUpdate(dt) {
-  const ACCEL = 30, FRICTION = 0.5;
+  const ACCEL = 60, FRICTION = 0.2;
 
   // スワイプ強さ・回数で速度が乗る。逆スワイプで減速、ゼロ超えで逆走可能
   bvx += targetInputX * ACCEL * dt;
@@ -1704,8 +1764,8 @@ window.addEventListener('touchmove', e=>{
   if (gameState!=='playing'&&gameState!=='foul') return;
   e.preventDefault();
   const t=e.touches[0];
-  const dx=(t.clientX-touchStartX)/innerWidth*3.5;
-  const dz=(t.clientY-touchStartY)/innerHeight*3.5;
+  const dx=(t.clientX-touchStartX)/innerWidth*5.5;
+  const dz=(t.clientY-touchStartY)/innerHeight*5.5;
   targetInputX=Math.max(-1,Math.min(1,dx));
   targetInputZ=Math.max(-1,Math.min(1,dz));
 },{passive:false});
@@ -1808,7 +1868,7 @@ const Game = {
     initMarble(); playBGM();
     makeBallMesh(S.selectedChar);
     setAccessory(S.equippedAcc);
-    buildBranchingCourse(S.selectedTheme);
+    buildCourse(S.selectedTheme);
     Game.resetBall(true);
     sessionCoins=0; lastCpNum=0;
     spawnData={x:0,y:2,z:0};
