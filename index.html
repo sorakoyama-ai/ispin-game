@@ -423,6 +423,10 @@ const GACHA = {
 
 // ── VERSION HISTORY ─────────────────────────────────────────
 const VERSION_HISTORY = [
+  {ver:'v1.6.3', date:'2026-06-21', changes:[
+    'ジャンプ中に壁が消えてコースアウトするバグを修正',
+    'カーブ・坂道でスワイプ方向が逆になるバグを修正（カメラ基底変換）',
+  ]},
   {ver:'v1.6.2', date:'2026-06-21', changes:[
     '壁コリジョン判定がカーブタイルで機能しないバグを修正',
     'カメラの初期向きが逆になっていたバグを修正',
@@ -1637,7 +1641,7 @@ function wallCollisions() {
     const ddx=bx-t.cx, ddz=bz-t.cz;
     const lx=ddx*cos2-ddz*sin2, lz=ddx*sin2+ddz*cos2;
     if (Math.abs(lx)<t.halfW+2 && Math.abs(lz)<t.halfL+2 &&
-        by > t.topY-1.5 && by < t.topY+5) { nearFloor=true; break; }
+        by > t.topY-1.5 && by < t.topY+20) { nearFloor=true; break; }
   }
   if (!nearFloor) return;
 
@@ -1797,10 +1801,13 @@ window.addEventListener('touchmove', e=>{
   if (gameState!=='playing'&&gameState!=='foul') return;
   e.preventDefault();
   const t=e.touches[0];
-  // 前回からのデルタをbvに加算（スワイプ回数が多いほど速くなる）
-  const ddx=(t.clientX-lastTouchX)/innerWidth*FLICK_SCALE;
-  const ddz=(t.clientY-lastTouchY)/innerHeight*FLICK_SCALE;
-  bvx+=ddx; bvz+=ddz;
+  // スクリーンデルタをカメラ方向基底でワールド座標に変換して加算
+  const dsx=(t.clientX-lastTouchX)/innerWidth*FLICK_SCALE;
+  const dsy=(t.clientY-lastTouchY)/innerHeight*FLICK_SCALE;
+  const fwdX=Math.sin(camAngle), fwdZ=Math.cos(camAngle); // カメラ前方
+  const rtX=-fwdZ, rtZ=fwdX;                              // カメラ右方向
+  bvx += -dsy*fwdX + dsx*rtX;
+  bvz += -dsy*fwdZ + dsx*rtZ;
   const spd=Math.hypot(bvx,bvz);
   if(spd>MAX_SPEED){bvx*=MAX_SPEED/spd;bvz*=MAX_SPEED/spd;}
   lastTouchX=t.clientX; lastTouchY=t.clientY;
