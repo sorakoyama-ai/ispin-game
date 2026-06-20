@@ -1144,39 +1144,49 @@ function buildBranchingCourse(themeIdx) {
   applyTheme(themeIdx);
   const th=THEMES[themeIdx], TH=TRACK_H, Y=0, topY=Y+TH/2;
 
-  // 床セクション追加ヘルパー
   function floorSec(cx,cz,w,l,ci,opts={}) {
     const m=addTile(cx,Y,cz,w,TH,l,th.track[ci||0]);
     tileMeshes.push({mesh:m,cx,cz,ay:0,halfW:w/2,halfL:l/2,topY,...opts});
   }
 
-  // ── 床セクション ──────────────────────────────
-  floorSec(0,   -25,   6, 60, 0);         // スタート直線
-  floorSec(0,   -63.5, 24, 17, 0);        // 分岐ゾーン（広い）
-  floorSec(-9.5,-110,  4, 76, 1);         // 分岐A（左）
-  floorSec(0,   -110,  4, 76, 0);         // 分岐B（中央）
-  floorSec( 9.5,-110,  4, 76, 2);         // 分岐C（右）
-  floorSec(0,  -156.5, 24, 17, 0);        // 合流ゾーン
-  floorSec(0,   -195,  6, 60, 0);         // ゴール直線
-  // ゴールタイル
-  const gm=addTile(0,Y,-228,10,TH,12,th.accent);
-  tileMeshes.push({mesh:gm,cx:0,cz:-228,ay:0,halfW:5,halfL:6,topY,isGoal:true});
-  goalZ=-228;
+  // ── スタート直線（幅6, Z=0〜-70）──
+  floorSec(0, -35, 6, 70, 0);
+  // ── Y字分岐床（幅14, Z=-70〜-90）──
+  floorSec(0, -80, 14, 20, 0);
+  // ── 3本道（各幅4, Z=-90〜-230）──
+  floorSec(-9.5,-160, 4, 140, 1);
+  floorSec(0,   -160, 4, 140, 0);
+  floorSec( 9.5,-160, 4, 140, 2);
+  // ── ジャンプ台（3本道内 Z=-140、通常床より少し高くして優先検出）──
+  [[-9.5],[0],[9.5]].forEach(([cx])=>{
+    const rm=addTile(cx,Y+0.35,-140,4,TH,8,th.accent);
+    tileMeshes.push({mesh:rm,cx,cz:-140,ay:0,halfW:2,halfL:4,topY:topY+0.35,isRamp:true});
+  });
+  // ── Y逆字合流床（幅14, Z=-230〜-250）──
+  floorSec(0,-240,14,20,0);
+  // ── ゴール直線（幅6, Z=-250〜-370）──
+  floorSec(0,-310, 6,120,0);
+  // ── ジャンプ台（ゴール直線内 Z=-310）──
+  const rmG=addTile(0,Y+0.35,-310,6,TH,8,th.accent);
+  tileMeshes.push({mesh:rmG,cx:0,cz:-310,ay:0,halfW:3,halfL:4,topY:topY+0.35,isRamp:true});
+  // ── ゴールタイル（Z=-372）──
+  const gm=addTile(0,Y,-372,10,TH,12,th.accent);
+  tileMeshes.push({mesh:gm,cx:0,cz:-372,ay:0,halfW:5,halfL:6,topY,isGoal:true});
+  goalZ=-372;
 
-  // ── 分岐入口マーカー（色付きライン）─────────────
-  [[-9.5,0xff4444,'A'],[0,0x44ff44,'B'],[9.5,0x4488ff,'C']].forEach(([x,col,lbl])=>{
+  // ── 分岐入口マーカー（色付きライン）──
+  [[-9.5,0xff4444],[0,0x44ff44],[9.5,0x4488ff]].forEach(([x,col])=>{
     const m=new THREE.Mesh(new THREE.BoxGeometry(3.5,0.05,0.6),
       new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.9}));
-    m.position.set(x,topY+0.02,-72.5);
+    m.position.set(x,topY+0.02,-88);
     scene.add(m); fenceMeshes.push(m);
   });
 
-  // ── チェックポイントゲート ────────────────────
+  // ── チェックポイントゲート ──
   const CPH=3.5;
   const cpMat=new THREE.MeshStandardMaterial({color:0xffdd00,emissive:0xffaa00,emissiveIntensity:1.2,roughness:0.1,metalness:0.9});
   function addCP(cx,cz,w,num,spawnX,spawnCZ) {
-    checkpoints.push({cx,cz,ay:0,reached:false,num,
-      spawnX,spawnY:2,spawnZ:spawnCZ,spawnAngle:0});
+    checkpoints.push({cx,cz,ay:0,reached:false,num,spawnX,spawnY:2,spawnZ:spawnCZ,spawnAngle:0});
     [-1,1].forEach(s=>{
       const p=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,CPH,10),cpMat);
       p.position.set(cx+s*(w/2+0.15),CPH/2+Y,cz);
@@ -1185,53 +1195,63 @@ function buildBranchingCourse(themeIdx) {
     const bar=new THREE.Mesh(new THREE.BoxGeometry(w+0.4,0.22,0.22),cpMat);
     bar.position.set(cx,CPH+Y,cz); scene.add(bar); fenceMeshes.push(bar);
   }
-  addCP(0,   -40, 6, 1, 0,    -20);
-  addCP(-9.5,-110,4, 2,-9.5,  -80);
-  addCP(0,   -110,4, 2, 0,    -80);
-  addCP( 9.5,-110,4, 2, 9.5,  -80);
-  addCP(0,   -190,6, 3, 0,   -170);
+  addCP(0,    -60, 6, 1, 0,    -30);
+  addCP(-9.5,-160, 4, 2,-9.5, -100);
+  addCP(0,   -160, 4, 2, 0,   -100);
+  addCP( 9.5,-160, 4, 2, 9.5, -100);
+  addCP(0,   -260, 6, 3, 0,   -250);
 
-  // ── ゴールゲート ──────────────────────────────
+  // ── ゴールゲート ──
   const gMat=new THREE.MeshStandardMaterial({color:0xffd700,emissive:0xffcc00,emissiveIntensity:1.6,roughness:0.05,metalness:1.0});
   const gH=5.5;
   [-1,1].forEach(s=>{
     const p=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,gH,12),gMat);
-    p.position.set(s*5.5,gH/2+Y,-228); p.castShadow=true;
+    p.position.set(s*5.5,gH/2+Y,-372); p.castShadow=true;
     scene.add(p); fenceMeshes.push(p);
   });
   const gBar=new THREE.Mesh(new THREE.BoxGeometry(11.4,0.4,0.4),gMat);
-  gBar.position.set(0,gH+Y,-228); scene.add(gBar); fenceMeshes.push(gBar);
+  gBar.position.set(0,gH+Y,-372); scene.add(gBar); fenceMeshes.push(gBar);
   const bMat=new THREE.MeshStandardMaterial({color:0xff2200,emissive:0xff0000,emissiveIntensity:0.9,roughness:0.2});
   const banner=new THREE.Mesh(new THREE.BoxGeometry(11,0.9,0.12),bMat);
-  banner.position.set(0,gH-0.55+Y,-228); scene.add(banner); fenceMeshes.push(banner);
+  banner.position.set(0,gH-0.55+Y,-372); scene.add(banner); fenceMeshes.push(banner);
 
-  // ── コイン ────────────────────────────────────
-  for(let z=-8;z>=-48;z-=10) addCoin(0,Y,z);
-  for(let z=-80;z>=-138;z-=13) addCoin(-9.5,Y,z);
-  for(let z=-80;z>=-138;z-=10) addCoin((Math.floor(-z/10)%2===0?-1:1)*0.8,Y,z);
-  for(let z=-80;z>=-138;z-=13) addCoin(9.5,Y,z);
-  for(let z=-168;z>=-210;z-=10) addCoin(0,Y,z);
+  // ── コイン ──
+  for(let z=-10;z>=-60;z-=10) addCoin(0,Y,z);
+  for(let z=-100;z>=-220;z-=15) { addCoin(-9.5,Y,z); addCoin(0,Y,z); addCoin(9.5,Y,z); }
+  for(let z=-260;z>=-360;z-=10) addCoin(0,Y,z);
 
-  // ── 透明壁 ────────────────────────────────────
+  // ── 透明壁 ──
   trackWalls=[];
   const W=(x1,z1,x2,z2)=>trackWalls.push({x1,z1,x2,z2});
-  W(-3,5,  3,5);             // スタート後壁
-  W(-3,5, -3,-55);           // スタート左
-  W( 3,5,  3,-55);           // スタート右
-  W(-3,-55,-12,-72);         // 分岐扇開き（左）
-  W( 3,-55, 12,-72);         // 分岐扇開き（右）
-  W(-12,-72,-12,-148);       // A外壁
-  W( 12,-72, 12,-148);       // C外壁
-  W(-7.5,-72,-7.5,-148);     // A内壁右
-  W(  -2,-72,  -2,-148);     // B内壁左
-  W(   2,-72,   2,-148);     // B内壁右
-  W( 7.5,-72, 7.5,-148);     // C内壁左
-  W(-12,-148,-3,-165);       // 合流扇絞り（左）
-  W( 12,-148, 3,-165);       // 合流扇絞り（右）
-  W(-3,-165,-3,-225);        // ゴール直線左
-  W( 3,-165, 3,-225);        // ゴール直線右
-  W(-5,-225,-5,-236);        // ゴールエリア左
-  W( 5,-225, 5,-236);        // ゴールエリア右
+  W(-3,  5,   3,   5);          // スタート後壁
+  W(-3,  5,  -3,  -70);         // スタート左壁
+  W( 3,  5,   3,  -70);         // スタート右壁
+  // Y字分岐（Z=-70〜-90）：一本道が3本にY字で分かれる
+  W(-3, -70, -11.5,-90);        // 左外壁が広がる
+  W( 3, -70,  11.5,-90);        // 右外壁が広がる
+  W(-3, -70,  -7.5,-90);        // A/B間の分岐壁（左）
+  W(-3, -70,   -2, -90);        // B左壁
+  W( 3, -70,   7.5,-90);        // B/C間の分岐壁（右）
+  W( 3, -70,    2, -90);        // B右壁
+  // 3本道（Z=-90〜-230）
+  W(-11.5,-90,-11.5,-230);      // A外壁
+  W( 11.5,-90, 11.5,-230);      // C外壁
+  W( -7.5,-90, -7.5,-230);      // A内壁右
+  W(  -2, -90,  -2, -230);      // B内壁左
+  W(   2, -90,   2, -230);      // B内壁右
+  W(  7.5,-90,  7.5,-230);      // C内壁左
+  // Y逆字合流（Z=-230〜-250）：3本道が一本道にY逆字で収束
+  W(-11.5,-230,  -3,-250);      // 左外壁が絞れる
+  W( 11.5,-230,   3,-250);      // 右外壁が絞れる
+  W( -7.5,-230,  -3,-250);      // A内壁収束
+  W(  -2, -230,  -3,-250);      // B左壁収束
+  W(   2, -230,   3,-250);      // B右壁収束
+  W(  7.5,-230,   3,-250);      // C内壁収束
+  // ゴール直線（Z=-250〜-378）
+  W(-3,-250, -3,-378);
+  W( 3,-250,  3,-378);
+  W(-5,-375, -5,-380);
+  W( 5,-375,  5,-380);
 }
 
 function buildCourse(themeIdx) {
@@ -1433,7 +1453,7 @@ function generateCourseLayout() {
 
 // ── PHYSICS ──────────────────────────────────────────────────
 const GRAV      = -30;
-const MAX_SPEED = 16;
+const MAX_SPEED = 28;
 
 let bx=0, by=2, bz=0;
 let bvx=0, bvz=0;     // ワールド空間の自由速度
@@ -1475,14 +1495,11 @@ function getGoalData() {
 }
 
 function physicsUpdate(dt) {
-  const ACCEL = 22, FRICTION = 3.2;
+  const ACCEL = 30, FRICTION = 0.5;
 
-  // プレイヤー入力で加速（カメラ固定基準）
+  // スワイプ強さ・回数で速度が乗る。逆スワイプで減速、ゼロ超えで逆走可能
   bvx += targetInputX * ACCEL * dt;
-  // 後退中（bvz>1）は後退方向への入力を無効化して逆走加速を防ぐ
-  if (!(targetInputZ > 0 && bvz > 1)) {
-    bvz += targetInputZ * ACCEL * dt;
-  }
+  bvz += targetInputZ * ACCEL * dt;
 
   // 地面接触時のみ摩擦
   if (onGround) {
@@ -1714,13 +1731,13 @@ window.addEventListener('keyup', e=>{
 });
 
 // ── CAMERA ───────────────────────────────────────────────────
-// 斜め見下ろし固定カメラ（自由移動ゲーム向け）
-let camP=new THREE.Vector3(0,18,8), camL=new THREE.Vector3(0,0,-2);
+// 3人称視点カメラ（斜め後ろから追従）
+let camP=new THREE.Vector3(0,8,14), camL=new THREE.Vector3(0,1,-3);
 function updateCamera(dt) {
-  const targetP = new THREE.Vector3(bx, by+17, bz+7);
-  const targetL = new THREE.Vector3(bx, by, bz-2);
-  camP.lerp(targetP, 6*dt);
-  camL.lerp(targetL, 6*dt);
+  const targetP = new THREE.Vector3(bx, by+8, bz+14);
+  const targetL = new THREE.Vector3(bx, by+1, bz-3);
+  camP.lerp(targetP, 5*dt);
+  camL.lerp(targetL, 5*dt);
   camera.position.copy(camP);
   camera.lookAt(camL);
 }
@@ -1819,8 +1836,8 @@ const Game = {
     else { bx=spawnData.x; by=spawnData.y; bz=spawnData.z; }
     bvx=0; bvz=0; vy=0;
     targetInputX=0; targetInputZ=0;
-    camP.set(bx, by+17, bz+7);
-    camL.set(bx, by, bz-2);
+    camP.set(bx, by+8, bz+14);
+    camL.set(bx, by+1, bz-3);
   },
   foul() {
     gameState='foul';
